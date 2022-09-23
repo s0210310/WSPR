@@ -291,7 +291,7 @@ void setup()
 
   // set up the si5351
   si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);        // (0 is the default xtal freq of 25Mhz)
-  si5351.set_correction(19100, SI5351_PLL_INPUT_XO);                      // trim the onboard oscillator
+  si5351.set_correction(51200, SI5351_PLL_INPUT_XO);                      // trim the onboard oscillator
   si5351.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
 }
 
