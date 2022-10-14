@@ -15,52 +15,26 @@
 #include <si5351.h>
 #include <JTEncode.h>   //JTEncode  by NT7S https://github.com/etherkit/JTEncode
 
-#define WSPR_FREQ_2M       14449000000ULL   //2m    144.490,000MHz 
-#define WSPR_FREQ_2M_STR   "144,490,000" 
- 
-#define WSPR_FREQ_6M        5029450000ULL   //6m     50.294,500MHz 
-#define WSPR_FREQ_6M_STR    "50,294,500" 
+const int bandschedule[30] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+const PROGMEM uint64_t band_freq[15] = {13750000, 47570000ULL, 183810000ULL, 357010000ULL, 536620000ULL, 704010000ULL, 1014020000ULL, 1409710000ULL, 1810610000ULL, 2109610000ULL, 2492610000ULL, 2812610000ULL, 5029450000ULL, 14449000000ULL};
+const char* band_str1[15] = {"137,", "475,", "1,838,", "3,570,", "5,366,", "7,040,", "10,140,", "14,097,", "18,106,", "21,096,", "24,926,", "28,126,", "50,294,", "144,490,"};
+const char* band_str[15] = {"2190", "630", "160", "80", "60", "40", "30", "20", "17", "15", "12", "10", "6", "2"};
 
-#define WSPR_FREQ_10M       2812610000ULL   //10m    28.126,100MHz
-#define WSPR_FREQ_10M_STR   "28,126,100" 
-
-#define WSPR_FREQ_12M       2492610000ULL   //12m    24.926,100MHz 
-#define WSPR_FREQ_12M_STR   "24,926,100" 
-
-#define WSPR_FREQ_15M       2109610000ULL   //15m    21.096.100MHz  
-#define WSPR_FREQ_15M_STR   "21,096,100" 
-
-#define WSPR_FREQ_17M       1810610000ULL   //17m    18.106,100MHz
-#define WSPR_FREQ_17M_STR   "18,106,100" 
-
-#define WSPR_FREQ_20M       1409710000ULL   //20m    14.097,100MHz 
-#define WSPR_FREQ_20M_STR   "14,097,100" 
-
-#define WSPR_FREQ_30M       1014020000ULL   //30m    10.140,200MHz  
-#define WSPR_FREQ_30M_STR   "10,140,200" 
-
-#define WSPR_FREQ_40M       704010000ULL   //40m     7.040,100MHz 
-#define WSPR_FREQ_40M_STR   "7,040,100" 
-
-#define WSPR_FREQ_80M       357010000ULL   //80m     3.570,100MHz
-#define WSPR_FREQ_80M_STR   "3,570,100" 
-
-#define WSPR_FREQ_160M      183810000ULL   //160m    1.838,100MHz
-#define WSPR_FREQ_160M_STR   "1,838,100" 
-
-#define WSPR_FREQ_630M       47570000ULL   //630m      475.700kHz
-#define WSPR_FREQ_630M_STR   "475,700" 
-
-#define WSPR_FREQ_2190M      13750000ULL   //2190m     137.500kHz
-#define WSPR_FREQ_2190M_STR   "137,500" 
+//----------------------------------------------------
+// function to read from progmem
+uint64_t pgm_read_64( void *ptr )
+{
+  uint64_t result;
+  memcpy_P( &result, ptr, sizeof(uint64_t) );
+  return result;
+}
 //---------------------------------------------------------------------
 // Set the band here!  Set BOTH and make sure they are for the same band!
-uint64_t freq;   // frequency variable  
-#define WSPR_FREQ        WSPR_FREQ_20M      // set the band here 
-#define WSPR_FREQ_STR    WSPR_FREQ_20M_STR  // set the band display string here 
+uint64_t freq;   // frequency variable
+int index = 0;  
 //---------------------------------------------------------------------
 // transmit windows that the beacon will use, as a percentage (0 == never transmit, 100 == always transmit)
-#define TX_FRACTION 75   
+#define TX_FRACTION 100   
 
 //---------------------------------------------------------------------
 
@@ -184,31 +158,42 @@ void SendWSPRBlock()
 
 void Send(){
   if(!GPS_locked) return;
-   Serial.println ("Wait even minute");
+   Serial.println (F("Wait even minute"));
   if ((GPSS == 0) && ((GPSM % 2) == 0))   //If second is zero at even minute then start WSPR transmission
   {
     if(random(0, 101) >= (TX_FRACTION - 1) )
     {
       // skip this slot, wait for the next one
-      Serial.println("  Skipping slot!");
+      Serial.println(F("  Skipping slot!"));
       lcd.setCursor(11,0);
-      lcd.print("Skip!");
+      lcd.print(F("Skip!"));
     }
     else
     {
       // start a WSPR transmission
-      Serial.println ("start WSPR");
-      
+      Serial.println (F("start WSPR"));
+       
       // hard code the band -- this label is set at the top of the script
-      freq = WSPR_FREQ;
+      index = int(GPSM/2);
+      int indexfreq = bandschedule[index];
+      // read from progmem
+      uint64_t local = pgm_read_64(&band_freq[indexfreq]); 
+      //--------------------------------------------------------------
+     
+      freq = local;
+      uint64_t freq1 = freq;      
+
       freq = freq + (100ULL * random (-100, 100)); //modify TX frequency with a random value beween -100 and +100 Hz
       Serial.print("f="); 
       Serial.println((unsigned long)(freq/100));
 
       // overwrite hertz 3 digits of the transmit frequency on the LCD with actual value
-      byte hz = 100 - abs((int)((WSPR_FREQ - freq)/100ULL));
+      byte hz = 100 - abs((int)((freq1 - freq)/100ULL));
 //      Serial.print(" ="); Serial.println(hz);
-      
+      lcd.setCursor(0,1);
+      lcd.print(F("               "));
+      lcd.setCursor(0,1);
+      lcd.print(band_str1[bandschedule[index]]);
       lcd.setCursor(7,1);   
       if(hz < 100) lcd.print('0');
       if(hz < 10)  lcd.print('0');
@@ -220,20 +205,16 @@ void Send(){
       delay(980);  // Transmissions nominally start one second into an even UTC minute: e.g., at hh:00:01, hh:02:01, etc.
 
       lcd.setCursor(8,0);
-      lcd.print(" WSPR-Tx");
+      lcd.print(F(" WSPR-Tx"));
       lcd.setCursor(8,1);
 
       SendWSPRBlock ();
-//      if (LastFreq ())  {
-//          smartdelay(GadgetData.TXPause * 1000UL);   // Pause for some time to give a duty cycle on the transmit. 2000=100%, 20000=50%, 130000=33%
-//        }
-//        NextFreq();
 
       freq = freq + (100ULL * random (-100, 100));    // modify TX frequency with a random value beween -100 and +100 Hz
 
 //      Serial.println("delay 10s");
       lcd.setCursor(10,1);
-      lcd.print("wait>");
+      lcd.print(F("wait>"));
       for (byte n=9; n>0; n--){
         lcd.setCursor(15,1);
         lcd.print(n);
@@ -242,8 +223,6 @@ void Send(){
       };
       
       lcd.clear();
-
-//      Serial.println (F("Wait..."));
 
     }  // else start a WSPR transmission 
   } // even minute and zero second
@@ -282,12 +261,12 @@ void setup()
   WSPRData.CallSign[5] = 'P';    
   WSPRData.CallSign[6] = 0;    
   WSPRData.LocatorOption = GPS; 
-  WSPRData.MaidenHead4[0] = 'Q';          //Maidenhead locator, must be 4 chars and a zero termination
-  WSPRData.MaidenHead4[1] = 'F';             
-  WSPRData.MaidenHead4[2] = '2';             
-  WSPRData.MaidenHead4[3] = '2';             
+  WSPRData.MaidenHead4[0] = 'J';          //Maidenhead locator, must be 4 chars and a zero termination
+  WSPRData.MaidenHead4[1] = 'O';             
+  WSPRData.MaidenHead4[2] = '1';             
+  WSPRData.MaidenHead4[3] = '0';             
   WSPRData.MaidenHead4[4] = 0;             
-  WSPRData.TXPowerdBm = 5;              // 200mW   Power data in dBm min=0 max=60, set to 20dBm 100mW
+  WSPRData.TXPowerdBm = 10;              // 200mW   Power data in dBm min=0 max=60, set to 20dBm 100mW
 
   // set up the si5351
   si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);        // (0 is the default xtal freq of 25Mhz)
@@ -341,7 +320,7 @@ void loop()
        lcd.print(':');
        lcd.print(nmea_buff[11]);
        lcd.print(nmea_buff[12]);
-       lcd.print("Z       "); 
+       lcd.print(F("Z       ")); 
      
        String tokn(nmea_buff[11]);
        tokn.concat(nmea_buff[12]);
@@ -357,10 +336,15 @@ void loop()
      }
      else
        // No GPS timestamp decode yet...
-       lcd.print("GPS scan");
-
+       lcd.print(F("GPS scan"));
+     index = int(GPSM/2);
+     
+     int nextindex = index; 
+     if(index==15){nextindex=0;} else {nextindex = index+1;}
      lcd.setCursor(0,1);
-     lcd.print(WSPR_FREQ_STR);      
+     lcd.print(F("Next band: "));
+     lcd.print(band_str[bandschedule[nextindex]]);
+     lcd.print(F("M"));      
 
      // see if it's time to WSPR...
      Send();
