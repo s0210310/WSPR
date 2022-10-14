@@ -1,0 +1,15 @@
+// Example program
+#include <iostream>
+#include <string>
+int bandschedule[] = 
+{ 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+unsigned long long band_freq[] = {13750000ULL, 47570000ULL, 183810000ULL, 357010000ULL, 536620000ULL, 704010000ULL, 1014020000ULL, 1409710000ULL, 1810610000ULL, 2109610000ULL, 2492610000ULL, 2812610000ULL, 5029450000ULL, 14449000000ULL};
+const char* band_str[] = {"2190M", "630M", "160M", "80M", "60M", "40M", "30M", "20M", "17M", "15M", "12M", "10M", "6M", "2M"};
+int main()
+{
+  std::string name;
+  std::cout << band_freq[bandschedule[3]] ;
+  std::cout << " ";
+  std::cout << band_str[bandschedule[3]] ;
+  
+}
