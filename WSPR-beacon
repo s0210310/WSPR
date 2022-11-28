@@ -1,13 +1,12 @@
+// Adapted sketch of:
+// "A simple mono-band WSPR beacon using an si5351 breakout for clock synthesis and a Ublox 6M for time sync. 
+// Paul Taylor  VK3HN   4 Oct 2021  Version 1.0  Initial working version. "
 //
-// A simple mono-band WSPR beacon using an si5351 breakout for clock synthesis and a Ublox 6M for time sync. 
-// Paul Taylor  VK3HN   
-//
-// For a Blog post write-up see: https://vk3hn.wordpress.com/2021/10/04/20-meters-200mw-12000-miles-wspr-magic/
-//
-// The WSPR code is copied from Software for Zachtek "WSPR-TX_LP1 Version 1"
-//    https://github.com/HarrydeBug/1011-WSPR-TX_LP1 
-//
-//  4 Oct 2021  Version 1.0  Initial working version.    
+// Adapted to use band-hopping and reduce RAM usage
+// Minimum viable free dynamic RAM should be > 530 bytes to run
+// Change  " // set up WSPR transmit data" for your callsign, locator and power
+// Serguei Gontcharenko ON3DVP
+// 16 Oct 2022     
 //
 
 #include <SoftwareSerial.h>
@@ -15,13 +14,16 @@
 #include <si5351.h>
 #include <JTEncode.h>   //JTEncode  by NT7S https://github.com/etherkit/JTEncode
 
+//-- compares GPS minutes, retrieves index of band_freq to use, adapt to own scheduling of band hop
+//-- based on wsprnet bandhopping plan
+//--every even minute, index { 0, 2, 4, 6, 8, 10,12,14,16, 18, 20,22,24,26,28,30,32,34,36, 38,40,42,44,46,48,50,52,54, 56, 58} 
 const int bandschedule[30] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
 const PROGMEM uint64_t band_freq[15] = {13750000, 47570000ULL, 183810000ULL, 357010000ULL, 536620000ULL, 704010000ULL, 1014020000ULL, 1409710000ULL, 1810610000ULL, 2109610000ULL, 2492610000ULL, 2812610000ULL, 5029450000ULL, 14449000000ULL};
 const char* band_str1[15] = {"137,", "475,", "1,838,", "3,570,", "5,366,", "7,040,", "10,140,", "14,097,", "18,106,", "21,096,", "24,926,", "28,126,", "50,294,", "144,490,"};
-const char* band_str[15] = {"2190", "630", "160", "80", "60", "40", "30", "20", "17", "15", "12", "10", "6", "2"};
+const int band_str[15] = {2190, 630, 160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6, 2};
 
-//----------------------------------------------------
-// function to read from progmem
+//---------------------------------------------------------------------
+// function to read ULLs frequencies from PROGMEM, saves RAM
 uint64_t pgm_read_64( void *ptr )
 {
   uint64_t result;
@@ -29,17 +31,16 @@ uint64_t pgm_read_64( void *ptr )
   return result;
 }
 //---------------------------------------------------------------------
-// Set the band here!  Set BOTH and make sure they are for the same band!
 uint64_t freq;   // frequency variable
-int index = 0;  
+int index = 0;   // index for bandhopping schedule 
 //---------------------------------------------------------------------
 // transmit windows that the beacon will use, as a percentage (0 == never transmit, 100 == always transmit)
 #define TX_FRACTION 100   
 
 //---------------------------------------------------------------------
 
-#define GPS_RX_PIN 4  // receive serial data pin on the ublox GPS module
-#define GPS_TX_PIN 3  // transmit serial data pin on the ublox GPS module
+#define GPS_RX_PIN 5  // receive serial data pin on the ublox GPS module
+#define GPS_TX_PIN 4  // transmit serial data pin on the  ublox GPS module
 
 enum E_LocatorOption {
   Manual,
@@ -133,7 +134,7 @@ void SendWSPRBlock()
     };
 
     Serial.print(i);     Serial.print(" "); Serial.println((unsigned long)tonefreq);  
-//    if((i>0) && (i%20 == 0)) Serial.println(); 
+
 
     // wait until tone is transmitted for the correct amount of time
     while (millis() < endmillis){
@@ -146,12 +147,11 @@ void SendWSPRBlock()
     if(k < 10)  lcd.print(" ");
     lcd.print(k-1);      
     
-//    if((i)%20 == 0) Serial.print("#");  // transmit progress bar
   };
   
   // Switch off Si5351a output
   si5351.output_enable(SI5351_CLK0, 0);  // turn the VFO off
-  Serial.println("/TX");
+  Serial.println(F("/TX"));
 };
 
 
@@ -173,7 +173,7 @@ void Send(){
       // start a WSPR transmission
       Serial.println (F("start WSPR"));
        
-      // hard code the band -- this label is set at the top of the script
+      // read the minute, retrieve scheduled band, retrieves frequency to use at this tx window
       index = int(GPSM/2);
       int indexfreq = bandschedule[index];
       // read from progmem
@@ -189,9 +189,8 @@ void Send(){
 
       // overwrite hertz 3 digits of the transmit frequency on the LCD with actual value
       byte hz = 100 - abs((int)((freq1 - freq)/100ULL));
-//      Serial.print(" ="); Serial.println(hz);
       lcd.setCursor(0,1);
-      lcd.print(F("               "));
+      lcd.print(F("               "));            //clear out last line on LCD
       lcd.setCursor(0,1);
       lcd.print(band_str1[bandschedule[index]]);
       lcd.setCursor(7,1);   
@@ -200,7 +199,6 @@ void Send(){
       lcd.print(hz);
 
       set_tx_buffer();    // Encode the message in the transmit buffer
-                          // Not sure why this could not be done in setup()
   
       delay(980);  // Transmissions nominally start one second into an even UTC minute: e.g., at hh:00:01, hh:02:01, etc.
 
@@ -212,17 +210,16 @@ void Send(){
 
       freq = freq + (100ULL * random (-100, 100));    // modify TX frequency with a random value beween -100 and +100 Hz
 
-//      Serial.println("delay 10s");
-      lcd.setCursor(10,1);
+      /*lcd.setCursor(10,1);
       lcd.print(F("wait>"));
       for (byte n=9; n>0; n--){
         lcd.setCursor(15,1);
         lcd.print(n);
          Serial.println(n);
-        delay(1000);  // to get us clear of the next even minute     
-      };
+        delay(1000);       // to get us clear of the next even minute     
+      }; */
       
-      lcd.clear();
+      lcd.clear();         // slow operation
 
     }  // else start a WSPR transmission 
   } // even minute and zero second
@@ -240,11 +237,11 @@ void setup()
   lcd.backlight();
   lcd.clear(); 
   lcd.setCursor(0,0); 
-  lcd.print("GPS WSPRv1.0    ");
+  lcd.print(F("GPS WSPRv1.0    "));
   delay(500);
 
   lcd.setCursor(0,1); 
-  lcd.print("Arduino/ Ublox6M");
+  lcd.print(F("Arduino/ Ublox6M"));
   delay(1000);
   lcd.clear(); 
 
@@ -266,13 +263,13 @@ void setup()
   WSPRData.MaidenHead4[2] = '1';             
   WSPRData.MaidenHead4[3] = '0';             
   WSPRData.MaidenHead4[4] = 0;             
-  WSPRData.TXPowerdBm = 10;              // 200mW   Power data in dBm min=0 max=60, set to 20dBm 100mW
+  WSPRData.TXPowerdBm = 10;              // 10mW   Power data in dBm min=0 max=60, 8mA drive of the Si chip equals 10mW
 
   // set up the si5351
   si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);        // (0 is the default xtal freq of 25Mhz)
-  si5351.set_correction(51200, SI5351_PLL_INPUT_XO);                      // trim the onboard oscillator
+  si5351.set_correction(87000, SI5351_PLL_INPUT_XO); // trim the onboard oscillator, use si5351 library sketch to calibrate your chip
   si5351.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
-  si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA);
+  si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA); // set drive strength, 8MA is max
 }
 
 
@@ -288,7 +285,6 @@ void loop()
     if (mySerial.available()) {  // check SoftwareSerial port
       c = mySerial.read();       // read the next serial char from the GPS
       if(i<(NMEA_BUFF_LEN-1)) nmea_buff[i++] = c;  // append to NMEA buffer
-//    if((c != '\n')) Serial.print(c);
     }    
   }
 
@@ -311,7 +307,6 @@ void loop()
 
      if(GPS_locked){
        lcd.setCursor(0,0);
-//       for(j=7; j<13; j++) lcd.print(nmea_buff[j]);
        lcd.print(nmea_buff[7]);
        lcd.print(nmea_buff[8]);
        lcd.print(':');
