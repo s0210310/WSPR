@@ -17,8 +17,9 @@ si5351: frequency synthetiser chip. Connect SDA to A4 and SCL to A5.
 ### Strongly encouraged
 band pass filter: https://pa0fri.home.xs4all.nl/Diversen/LPfilter/Hf%20low%20pass%20filter.htm for a HF low pass filter. Note that harmonics will still exist, i.e. 7MHz will get 14, 21, 28 MHz harmonics. Si5351 is not clean.
 
-Display: sketch is based on 2x16 LC module with I²C adaptor. Feel free to change, as long as you keep in mind ~530 bytes of minimum RAM memory.
 ### Optional
+Display: sketch is based on 2x16 LC module with I²C adaptor. Feel free to change, as long as you keep in mind ~530 bytes of minimum RAM memory.
+
 Battery power: with Arduino, GPS, si5351 and LCD, you'll need a step up converter if you plan on using Li-Ion cells.
 
 Buttons: Reset button wired to RST, if battery powered, and using LCD, you can use momentary switch for LCD LED.
